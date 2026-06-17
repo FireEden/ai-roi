@@ -41,29 +41,36 @@ COLORS = {
     "positive": "#10B981",   # emerald green
     "negative": "#EF4444",   # red
     "neutral": "#94A3B8",    # slate gray
-    "grid": "#E5E7EB",
+    "grid": "rgba(148,163,184,0.18)",   # faint slate, works on any background
+    "text": "#1A1A2E",
 }
 
 
 def style_fig(fig, title, y_title, x_title="Month", height=420):
-    """Apply the shared modern styling to a Plotly figure."""
+    """Apply the shared modern styling to a Plotly figure.
+
+    Backgrounds are transparent so the chart blends into the page rather than
+    sitting on a white card. Lines, text, and grid are chosen to contrast the
+    app's light background.
+    """
     fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color="#1A1A2E")),
+        title=dict(text=title, font=dict(size=18, color=COLORS["text"])),
         xaxis_title=x_title,
         yaxis_title=y_title,
         height=height,
-        template="plotly_white",
         font=dict(family="system-ui, -apple-system, sans-serif", size=13,
-                  color="#1A1A2E"),
+                  color=COLORS["text"]),
         margin=dict(l=60, r=30, t=60, b=50),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1),
         hovermode="x unified",
-        plot_bgcolor="white",
-        paper_bgcolor="white",
+        # Transparent backgrounds so the chart melts into the page.
+        plot_bgcolor="rgba(0,0,0,0)",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
-    fig.update_xaxes(showgrid=False, zeroline=False)
+    fig.update_xaxes(showgrid=False, zeroline=False,
+                     linecolor=COLORS["grid"])
     fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], zeroline=True,
-                     zerolinecolor="#9CA3AF", zerolinewidth=1)
+                     zerolinecolor="rgba(148,163,184,0.5)", zerolinewidth=1)
     return fig
 
 
@@ -161,18 +168,18 @@ def render_radar(scores, scales, title):
         name="Score",
     ))
     fig.update_layout(
-        title=dict(text=title, font=dict(size=16, color="#1A1A2E")),
+        title=dict(text=title, font=dict(size=16, color=COLORS["text"])),
         polar=dict(
             radialaxis=dict(visible=True, range=[0, 5], tickvals=[1, 2, 3, 4, 5],
-                            gridcolor=COLORS["grid"]),
-            angularaxis=dict(gridcolor=COLORS["grid"]),
-            bgcolor="white",
+                            gridcolor=COLORS["grid"], linecolor=COLORS["grid"]),
+            angularaxis=dict(gridcolor=COLORS["grid"], linecolor=COLORS["grid"]),
+            bgcolor="rgba(0,0,0,0)",
         ),
         height=400, showlegend=False,
         font=dict(family="system-ui, -apple-system, sans-serif", size=12,
-                  color="#1A1A2E"),
+                  color=COLORS["text"]),
         margin=dict(l=70, r=70, t=60, b=40),
-        paper_bgcolor="white",
+        paper_bgcolor="rgba(0,0,0,0)",
     )
     return fig, avg
 
@@ -181,6 +188,36 @@ def render_radar(scores, scales, title):
 # Page setup
 # ----------------------------------------------------------------------
 st.set_page_config(page_title="AI Adoption ROI", page_icon="🤖", layout="wide")
+
+# --- Light visual polish via CSS ---
+# Streamlit's number inputs show the typed value and the -/+ stepper buttons in
+# separate bordered boxes, which looks disjointed. This unifies them into one
+# clean bordered control with seamless stepper buttons.
+st.markdown(
+    """
+    <style>
+    /* Unify the number-input field and its +/- stepper into one border */
+    div[data-testid="stNumberInput"] > div {
+        border: 1px solid rgba(148,163,184,0.4);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+    div[data-testid="stNumberInput"] > div > div {
+        border: none !important;
+    }
+    /* Stepper buttons: no separate border, subtle hover */
+    div[data-testid="stNumberInput"] button {
+        border: none !important;
+        background: transparent;
+    }
+    div[data-testid="stNumberInput"] button:hover {
+        background: rgba(79,70,229,0.08);
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 st.title("AI Adoption ROI Model")
 st.caption(
     "Is our AI adoption paying off? Model the costs and benefits of each AI "
@@ -372,7 +409,7 @@ with tab_usecase:
             if real_key not in st.session_state:
                 st.session_state[real_key] = int(round(current.get("realization", 1.0) * 100))
             real_pct = st.slider(
-                "↳ realization %", min_value=0, max_value=100, step=5,
+                "Realization %", min_value=0, max_value=100, step=5,
                 key=real_key,
                 help="What fraction of this benefit you're actually capturing. "
                      "100% = full benefit; lower discounts it.",
@@ -448,22 +485,23 @@ with tab_usecase:
             "— a lens on how much to trust the financial result above."
         )
 
-        score_col, radar_col = st.columns([1, 1.1])
-
         # Ensure the dollar-impacts dict exists on this use case.
         if "readiness_dollar_impacts" not in uc:
             uc["readiness_dollar_impacts"] = {}
 
-        with score_col:
-            st.markdown("**Rate each factor (1-5)**")
-            st.caption(
-                "Optionally add a known **monthly $ impact** for any factor "
-                "(negative = a cost like lost productivity; positive = a "
-                "benefit). These add to the net on top of the % haircut."
-            )
-            for key in scales.keys():
-                levels = scales[key]["levels"]
-                current = uc["qualitative"][key]
+        st.markdown("**Rate each factor (1-5)**")
+        st.caption(
+            "Set each factor's score on the left. Optionally add a known "
+            "**monthly $ impact** on the right (negative = a cost like lost "
+            "productivity; positive = a benefit). The $ impacts add to the net "
+            "on top of the % haircut."
+        )
+        # Each factor: score slider on the left, dollar impact on the right.
+        for key in scales.keys():
+            levels = scales[key]["levels"]
+            current = uc["qualitative"][key]
+            srow = st.columns([2, 1])
+            with srow[0]:
                 new_val = st.select_slider(
                     scales[key]["label"],
                     options=[1, 2, 3, 4, 5],
@@ -472,9 +510,9 @@ with tab_usecase:
                     key=f"q_{selected_name}_{key}",
                 )
                 uc["qualitative"][key] = new_val
-                # Signed monthly dollar impact for this factor (optional).
+            with srow[1]:
                 dollar = st.number_input(
-                    f"↳ {scales[key]['label']} $ impact/mo",
+                    "$ impact / mo",
                     value=int(uc["readiness_dollar_impacts"].get(key, 0)),
                     step=500,
                     key=f"dimp_{selected_name}_{key}",
@@ -484,11 +522,11 @@ with tab_usecase:
                 )
                 uc["readiness_dollar_impacts"][key] = dollar
 
-        with radar_col:
-            radar_fig, avg_score = render_radar(
-                uc["qualitative"], scales, f"{selected_name}: Readiness"
-            )
-            st.plotly_chart(radar_fig, use_container_width=True)
+        # Radar chart below the factor rows, centered.
+        radar_fig, avg_score = render_radar(
+            uc["qualitative"], scales, f"{selected_name}: Readiness"
+        )
+        st.plotly_chart(radar_fig, use_container_width=True)
 
         # Readiness summary + the "trust" framing tying tiers together.
         avg = sum(uc["qualitative"].values()) / len(uc["qualitative"])
@@ -552,27 +590,23 @@ with tab_usecase:
     # --- Detail table + download ---
     with st.expander("See month-by-month detail"):
         st.caption(
-            "‘Adjustment %’ is the realization haircut applied to benefits "
-            "(from the readiness suggestion or your manual setting). "
-            "‘Readiness $ impact’ is the signed monthly dollar effect you "
-            "entered per factor. Both are already reflected in ‘net’."
+            "‘Monthly Benefit’ is the total benefit after the realization "
+            "haircut. ‘Overall readiness adj %’ is that realization % (from the "
+            "readiness suggestion or your manual setting). ‘Overall readiness "
+            "adj $’ is the sum of the per-factor dollar impacts you entered. "
+            "‘Net’ includes all of these."
         )
-        # Rename columns for clarity in the displayed table.
         display_cf = cashflow.rename(columns={
             "month": "Month",
-            "costs": "Costs",
-            "benefits": "Benefits (after %)",
-            "readiness_impact": "Readiness $ impact",
-            "adjustment_pct": "Adjustment %",
+            "costs": "Cost",
+            "benefits": "Monthly Benefit",
+            "adjustment_pct": "Overall readiness adj %",
+            "readiness_impact": "Overall readiness adj $",
             "net": "Net",
             "cumulative_net": "Cumulative net",
-        })
-        # Drop the internal gross-split columns from the view.
-        display_cf = display_cf.drop(columns=["impact_positive", "impact_negative"],
-                                     errors="ignore")
-        # Order columns sensibly.
-        col_order = ["Month", "Costs", "Benefits (after %)", "Adjustment %",
-                     "Readiness $ impact", "Net", "Cumulative net"]
+        }).drop(columns=["impact_positive", "impact_negative"], errors="ignore")
+        col_order = ["Month", "Cost", "Monthly Benefit", "Overall readiness adj %",
+                     "Overall readiness adj $", "Net", "Cumulative net"]
         display_cf = display_cf[[c for c in col_order if c in display_cf.columns]]
         st.dataframe(display_cf, width="stretch")
         csv = display_cf.to_csv(index=False).encode("utf-8")
