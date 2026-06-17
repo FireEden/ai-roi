@@ -1,0 +1,6 @@
+# Python dependencies for the AI Adoption ROI tool.
+# Install with:  pip install -r requirements.txt
+
+pandas>=2.0
+plotly>=5.20
+streamlit>=1.30
