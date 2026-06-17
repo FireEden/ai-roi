@@ -1,0 +1,257 @@
+{
+  "settings": {
+    "horizon_months": 24,
+    "discount_rate_annual": 0.09,
+    "currency": "USD"
+  },
+  "use_cases": [
+    {
+      "name": "Coding Assistant",
+      "team": "Engineering",
+      "start_month": 0,
+      "ramp_months": 3,
+      "monthly_costs": {
+        "tokens_api": 4200,
+        "licenses": 9500,
+        "infrastructure": 800
+      },
+      "one_time_costs": {
+        "setup_integration": 18000,
+        "initial_training": 12000
+      },
+      "monthly_benefits": {
+        "engineering_hours_saved": {
+          "amount": 52000,
+          "realization": 1.0
+        },
+        "faster_delivery_value": {
+          "amount": 15000,
+          "realization": 1.0
+        },
+        "reduced_bug_rework": {
+          "amount": 8000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 4,
+        "change_fatigue": 4,
+        "job_security_sentiment": 3,
+        "leadership_buyin": 5,
+        "workflow_disruption": 4
+      }
+    },
+    {
+      "name": "Customer Support AI",
+      "team": "Customer Support",
+      "start_month": 1,
+      "ramp_months": 4,
+      "monthly_costs": {
+        "tokens_api": 3800,
+        "licenses": 6000,
+        "infrastructure": 700
+      },
+      "one_time_costs": {
+        "setup_integration": 22000,
+        "initial_training": 9000
+      },
+      "monthly_benefits": {
+        "ticket_deflection_savings": {
+          "amount": 28000,
+          "realization": 1.0
+        },
+        "faster_handle_time": {
+          "amount": 14000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 4,
+        "change_fatigue": 3,
+        "job_security_sentiment": 2,
+        "leadership_buyin": 4,
+        "workflow_disruption": 3
+      }
+    },
+    {
+      "name": "Marketing & Ad Content",
+      "team": "Marketing",
+      "start_month": 2,
+      "ramp_months": 3,
+      "monthly_costs": {
+        "tokens_api": 2100,
+        "licenses": 4500,
+        "infrastructure": 400
+      },
+      "one_time_costs": {
+        "setup_integration": 8000,
+        "initial_training": 6000
+      },
+      "monthly_benefits": {
+        "content_velocity_value": {
+          "amount": 19000,
+          "realization": 1.0
+        },
+        "agency_cost_avoided": {
+          "amount": 11000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 5,
+        "change_fatigue": 4,
+        "job_security_sentiment": 3,
+        "leadership_buyin": 4,
+        "workflow_disruption": 4
+      }
+    },
+    {
+      "name": "Accounting Automation",
+      "team": "Finance & Accounting",
+      "start_month": 1,
+      "ramp_months": 6,
+      "monthly_costs": {
+        "tokens_api": 1500,
+        "licenses": 7000,
+        "infrastructure": 600
+      },
+      "one_time_costs": {
+        "setup_integration": 30000,
+        "initial_training": 11000
+      },
+      "monthly_benefits": {
+        "reconciliation_hours_saved": {
+          "amount": 16000,
+          "realization": 1.0
+        },
+        "faster_close_value": {
+          "amount": 7000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 2,
+        "change_fatigue": 3,
+        "job_security_sentiment": 2,
+        "leadership_buyin": 3,
+        "workflow_disruption": 2
+      }
+    },
+    {
+      "name": "Talent Acquisition AI",
+      "team": "People / HR",
+      "start_month": 3,
+      "ramp_months": 4,
+      "monthly_costs": {
+        "tokens_api": 900,
+        "licenses": 3500,
+        "infrastructure": 300
+      },
+      "one_time_costs": {
+        "setup_integration": 7000,
+        "initial_training": 5000
+      },
+      "monthly_benefits": {
+        "screening_hours_saved": {
+          "amount": 9000,
+          "realization": 1.0
+        },
+        "faster_time_to_hire_value": {
+          "amount": 6000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 3,
+        "change_fatigue": 3,
+        "job_security_sentiment": 3,
+        "leadership_buyin": 3,
+        "workflow_disruption": 3
+      }
+    },
+    {
+      "name": "Security & Compliance AI",
+      "team": "Corporate Security & Compliance",
+      "start_month": 2,
+      "ramp_months": 8,
+      "monthly_costs": {
+        "tokens_api": 2600,
+        "licenses": 11000,
+        "infrastructure": 1500
+      },
+      "one_time_costs": {
+        "setup_integration": 45000,
+        "initial_training": 14000
+      },
+      "monthly_benefits": {
+        "threat_triage_hours_saved": {
+          "amount": 13000,
+          "realization": 1.0
+        },
+        "audit_prep_savings": {
+          "amount": 6000,
+          "realization": 1.0
+        }
+      },
+      "qualitative": {
+        "learning_curve": 2,
+        "change_fatigue": 2,
+        "job_security_sentiment": 3,
+        "leadership_buyin": 3,
+        "workflow_disruption": 2
+      }
+    }
+  ],
+  "qualitative_scales": {
+    "learning_curve": {
+      "label": "Learning curve",
+      "levels": {
+        "1": "Very challenging to learn",
+        "2": "Challenging",
+        "3": "Moderate",
+        "4": "Easy to pick up",
+        "5": "Easy peasy lemon squeezy"
+      }
+    },
+    "change_fatigue": {
+      "label": "Change fatigue",
+      "levels": {
+        "1": "Very fatigued",
+        "2": "Fatigued",
+        "3": "Neutral",
+        "4": "Adjusting well",
+        "5": "Very well adjusted"
+      }
+    },
+    "job_security_sentiment": {
+      "label": "Job-security sentiment",
+      "levels": {
+        "1": "Very anxious",
+        "2": "Anxious",
+        "3": "Uncertain",
+        "4": "Reassured",
+        "5": "Confident & secure"
+      }
+    },
+    "leadership_buyin": {
+      "label": "Leadership buy-in",
+      "levels": {
+        "1": "Actively skeptical",
+        "2": "Hesitant",
+        "3": "Neutral",
+        "4": "Supportive",
+        "5": "Strong champion"
+      }
+    },
+    "workflow_disruption": {
+      "label": "Workflow fit",
+      "levels": {
+        "1": "Highly disruptive",
+        "2": "Disruptive",
+        "3": "Some friction",
+        "4": "Fits well",
+        "5": "Seamless fit"
+      }
+    }
+  }
+}
