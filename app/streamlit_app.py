@@ -97,14 +97,45 @@ def suggested_realization(avg_score):
     """Suggest a benefit-realization % from the average readiness score (1-5).
 
     This is only a *suggestion* the user can accept or override — the judgment
-    stays visible and user-controlled. The mapping is deliberately gentle and
-    linear: full readiness (5) suggests counting 100% of benefits, while the
-    lowest readiness (1) suggests 60% (low adoption discounts benefits, but
-    doesn't zero them out). Returns an integer percentage.
+    stays visible and user-controlled. The mapping is linear across the full
+    range: the lowest readiness (1) suggests counting just 20% of benefits,
+    and full readiness (5) suggests 100%. So a mid score of 3 maps to 60%.
+    Returns an integer percentage.
     """
-    # Linear from (score 1 -> 60%) to (score 5 -> 100%).
-    pct = 60 + (avg_score - 1) / (5 - 1) * (100 - 60)
+    # Linear from (score 1 -> 20%) to (score 5 -> 100%).
+    pct = 20 + (avg_score - 1) / (5 - 1) * 80
     return int(round(pct))
+
+
+def _slugify(name):
+    """Turn a user-entered category name into a safe dict key."""
+    return "_".join(name.strip().lower().split())
+
+
+def add_remove_controls(uc_name, container_dict, kind_label, key_prefix,
+                        is_benefit=False):
+    """Render an add-category form and per-item remove buttons.
+
+    container_dict is the dict to mutate (e.g. uc['monthly_costs']).
+    Returns nothing; it mutates container_dict in place. The caller is
+    responsible for rendering the actual value inputs.
+    """
+    # Add form: a text box for the name + an Add button.
+    with st.popover(f"➕ Add {kind_label}"):
+        new_name = st.text_input(
+            f"New {kind_label} name", key=f"addname_{key_prefix}_{uc_name}",
+            placeholder="e.g. Vendor support",
+        )
+        if st.button(f"Add", key=f"addbtn_{key_prefix}_{uc_name}"):
+            cleaned = new_name.strip()
+            if cleaned:
+                slug = _slugify(cleaned)
+                if slug not in container_dict:
+                    # Benefits are dicts with amount+realization; costs are plain.
+                    container_dict[slug] = (
+                        {"amount": 0, "realization": 1.0} if is_benefit else 0
+                    )
+                st.rerun()
 
 
 def render_radar(scores, scales, title):
@@ -280,18 +311,39 @@ with tab_usecase:
     with cost_col:
         st.markdown("**Monthly costs ($)**")
         for item in list(uc["monthly_costs"].keys()):
-            uc["monthly_costs"][item] = st.number_input(
-                item.replace("_", " ").title(),
-                min_value=0, value=int(uc["monthly_costs"][item]), step=100,
-                key=f"mc_{selected_name}_{item}",
-            )
+            row = st.columns([4, 1])
+            with row[0]:
+                uc["monthly_costs"][item] = st.number_input(
+                    item.replace("_", " ").title(),
+                    min_value=0, value=int(uc["monthly_costs"][item]), step=100,
+                    key=f"mc_{selected_name}_{item}",
+                )
+            with row[1]:
+                st.markdown("<div style='height:1.8em'></div>", unsafe_allow_html=True)
+                if st.button("✕", key=f"delmc_{selected_name}_{item}",
+                             help=f"Remove {item}"):
+                    del uc["monthly_costs"][item]
+                    st.rerun()
+        add_remove_controls(selected_name, uc["monthly_costs"],
+                            "monthly cost", "mc")
+
         st.markdown("**One-time costs ($)**")
         for item in list(uc["one_time_costs"].keys()):
-            uc["one_time_costs"][item] = st.number_input(
-                item.replace("_", " ").title(),
-                min_value=0, value=int(uc["one_time_costs"][item]), step=500,
-                key=f"otc_{selected_name}_{item}",
-            )
+            row = st.columns([4, 1])
+            with row[0]:
+                uc["one_time_costs"][item] = st.number_input(
+                    item.replace("_", " ").title(),
+                    min_value=0, value=int(uc["one_time_costs"][item]), step=500,
+                    key=f"otc_{selected_name}_{item}",
+                )
+            with row[1]:
+                st.markdown("<div style='height:1.8em'></div>", unsafe_allow_html=True)
+                if st.button("✕", key=f"delotc_{selected_name}_{item}",
+                             help=f"Remove {item}"):
+                    del uc["one_time_costs"][item]
+                    st.rerun()
+        add_remove_controls(selected_name, uc["one_time_costs"],
+                            "one-time cost", "otc")
 
     with benefit_col:
         st.markdown("**Monthly benefits ($)**")
@@ -302,15 +354,20 @@ with tab_usecase:
         )
         for item in list(uc["monthly_benefits"].keys()):
             current = uc["monthly_benefits"][item]
-            uc["monthly_benefits"][item]["amount"] = st.number_input(
-                item.replace("_", " ").title(),
-                min_value=0, value=int(current["amount"]), step=500,
-                key=f"mb_{selected_name}_{item}",
-            )
+            row = st.columns([4, 1])
+            with row[0]:
+                uc["monthly_benefits"][item]["amount"] = st.number_input(
+                    item.replace("_", " ").title(),
+                    min_value=0, value=int(current["amount"]), step=500,
+                    key=f"mb_{selected_name}_{item}",
+                )
+            with row[1]:
+                st.markdown("<div style='height:1.8em'></div>", unsafe_allow_html=True)
+                if st.button("✕", key=f"delmb_{selected_name}_{item}",
+                             help=f"Remove {item}"):
+                    del uc["monthly_benefits"][item]
+                    st.rerun()
             # Realization slider (0-100%). Stored as a 0-1 fraction.
-            # Seed session state once from the stored value; thereafter let the
-            # widget's key drive it (so the "apply suggestion" button can set it
-            # without a value-vs-state conflict warning).
             real_key = f"real_{selected_name}_{item}"
             if real_key not in st.session_state:
                 st.session_state[real_key] = int(round(current.get("realization", 1.0) * 100))
@@ -321,11 +378,27 @@ with tab_usecase:
                      "100% = full benefit; lower discounts it.",
             )
             uc["monthly_benefits"][item]["realization"] = real_pct / 100
-            # Show the effective (haircut) monthly value so the impact is clear.
             effective = uc["monthly_benefits"][item]["amount"] * (real_pct / 100)
             if real_pct < 100:
                 st.caption(f"   → counting {fmt_money(effective)}/mo "
                            f"(of {fmt_money(current['amount'])})")
+        add_remove_controls(selected_name, uc["monthly_benefits"],
+                            "monthly benefit", "mb", is_benefit=True)
+
+    # --- Pre-seed readiness inputs from session state before analyzing ---
+    # The readiness widgets are rendered lower on the page, but Streamlit holds
+    # their values in session state by key. Reading them here (before we run the
+    # engine) ensures the metrics, J-curve, and detail table reflect the current
+    # readiness scores and dollar impacts in the same render — no one-step lag.
+    if "readiness_dollar_impacts" not in uc:
+        uc["readiness_dollar_impacts"] = {}
+    for key in company["qualitative_scales"].keys():
+        q_key = f"q_{selected_name}_{key}"
+        if q_key in st.session_state:
+            uc["qualitative"][key] = st.session_state[q_key]
+        d_key = f"dimp_{selected_name}_{key}"
+        if d_key in st.session_state:
+            uc["readiness_dollar_impacts"][key] = st.session_state[d_key]
 
     # --- Run the engine on this (possibly edited) use case ---
     result = analyze_use_case(uc, company["settings"])
@@ -377,11 +450,19 @@ with tab_usecase:
 
         score_col, radar_col = st.columns([1, 1.1])
 
+        # Ensure the dollar-impacts dict exists on this use case.
+        if "readiness_dollar_impacts" not in uc:
+            uc["readiness_dollar_impacts"] = {}
+
         with score_col:
             st.markdown("**Rate each factor (1-5)**")
+            st.caption(
+                "Optionally add a known **monthly $ impact** for any factor "
+                "(negative = a cost like lost productivity; positive = a "
+                "benefit). These add to the net on top of the % haircut."
+            )
             for key in scales.keys():
                 levels = scales[key]["levels"]
-                # JSON keys are strings; build the 1-5 options from them.
                 current = uc["qualitative"][key]
                 new_val = st.select_slider(
                     scales[key]["label"],
@@ -391,6 +472,17 @@ with tab_usecase:
                     key=f"q_{selected_name}_{key}",
                 )
                 uc["qualitative"][key] = new_val
+                # Signed monthly dollar impact for this factor (optional).
+                dollar = st.number_input(
+                    f"↳ {scales[key]['label']} $ impact/mo",
+                    value=int(uc["readiness_dollar_impacts"].get(key, 0)),
+                    step=500,
+                    key=f"dimp_{selected_name}_{key}",
+                    help="Known recurring monthly dollar effect of this factor. "
+                         "Negative for a cost, positive for a benefit. Leave 0 "
+                         "if none.",
+                )
+                uc["readiness_dollar_impacts"][key] = dollar
 
         with radar_col:
             radar_fig, avg_score = render_radar(
@@ -459,8 +551,31 @@ with tab_usecase:
 
     # --- Detail table + download ---
     with st.expander("See month-by-month detail"):
-        st.dataframe(cashflow, width="stretch")
-        csv = cashflow.to_csv(index=False).encode("utf-8")
+        st.caption(
+            "‘Adjustment %’ is the realization haircut applied to benefits "
+            "(from the readiness suggestion or your manual setting). "
+            "‘Readiness $ impact’ is the signed monthly dollar effect you "
+            "entered per factor. Both are already reflected in ‘net’."
+        )
+        # Rename columns for clarity in the displayed table.
+        display_cf = cashflow.rename(columns={
+            "month": "Month",
+            "costs": "Costs",
+            "benefits": "Benefits (after %)",
+            "readiness_impact": "Readiness $ impact",
+            "adjustment_pct": "Adjustment %",
+            "net": "Net",
+            "cumulative_net": "Cumulative net",
+        })
+        # Drop the internal gross-split columns from the view.
+        display_cf = display_cf.drop(columns=["impact_positive", "impact_negative"],
+                                     errors="ignore")
+        # Order columns sensibly.
+        col_order = ["Month", "Costs", "Benefits (after %)", "Adjustment %",
+                     "Readiness $ impact", "Net", "Cumulative net"]
+        display_cf = display_cf[[c for c in col_order if c in display_cf.columns]]
+        st.dataframe(display_cf, width="stretch")
+        csv = display_cf.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download this cash flow as CSV", data=csv,
             file_name=f"{selected_name.replace(' ', '_')}_cashflow.csv",
@@ -588,8 +703,16 @@ with tab_company:
 
     # --- Consolidated detail + download ---
     with st.expander("See consolidated month-by-month detail"):
-        st.dataframe(company_cf, width="stretch")
-        csv_co = company_cf.to_csv(index=False).encode("utf-8")
+        display_co = company_cf.rename(columns={
+            "month": "Month", "costs": "Costs", "benefits": "Benefits (after %)",
+            "readiness_impact": "Readiness $ impact", "net": "Net",
+            "cumulative_net": "Cumulative net",
+        }).drop(columns=["impact_positive", "impact_negative"], errors="ignore")
+        co_order = ["Month", "Costs", "Benefits (after %)", "Readiness $ impact",
+                    "Net", "Cumulative net"]
+        display_co = display_co[[c for c in co_order if c in display_co.columns]]
+        st.dataframe(display_co, width="stretch")
+        csv_co = display_co.to_csv(index=False).encode("utf-8")
         st.download_button(
             "Download company cash flow as CSV", data=csv_co,
             file_name="company_cashflow.csv", mime="text/csv",
