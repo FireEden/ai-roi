@@ -38,13 +38,35 @@ def use_case_cashflow(use_case, horizon_months):
     monthly_costs = use_case["monthly_costs"]
     one_time_costs = use_case.get("one_time_costs", {})
     monthly_benefits = use_case["monthly_benefits"]
+    # Optional recurring monthly dollar impacts from readiness factors, each a
+    # SIGNED value (negative = a cost like lost productivity, positive = a
+    # benefit). Stored as {factor_key: amount}. Defaults to empty.
+    readiness_impacts = use_case.get("readiness_dollar_impacts", {})
 
     total_monthly_cost = sum(monthly_costs.values())
     total_one_time = sum(one_time_costs.values())
-    # Each benefit already carries its realization fraction.
+
+    # Full (un-ramped) monthly benefit, and the same WITHOUT the realization
+    # haircut — we keep both so we can report the effective adjustment %.
+    total_benefit_full_unadjusted = sum(
+        b["amount"] for b in monthly_benefits.values()
+    )
     total_monthly_benefit_full = sum(
         b["amount"] * b.get("realization", 1.0) for b in monthly_benefits.values()
     )
+    # The net signed dollar impact from readiness factors (applied flat each
+    # active month). We also keep the gross positive and negative parts so ROI
+    # can treat them correctly (positive = benefit, negative = cost).
+    total_readiness_impact = sum(readiness_impacts.values())
+    gross_positive_impact = sum(v for v in readiness_impacts.values() if v > 0)
+    gross_negative_impact = sum(v for v in readiness_impacts.values() if v < 0)
+
+    # The effective realization % across all benefits (for transparency in the
+    # detail table). If there are no benefits, treat it as 100%.
+    if total_benefit_full_unadjusted > 0:
+        effective_realization = total_monthly_benefit_full / total_benefit_full_unadjusted
+    else:
+        effective_realization = 1.0
 
     rows = []
     for m in range(horizon_months):
@@ -52,6 +74,9 @@ def use_case_cashflow(use_case, horizon_months):
             # Use case hasn't started yet: no costs, no benefits.
             cost = 0.0
             benefit = 0.0
+            readiness_impact = 0.0
+            impact_positive = 0.0
+            impact_negative = 0.0
         else:
             months_active = m - start  # 0 in the first active month
 
@@ -67,8 +92,23 @@ def use_case_cashflow(use_case, horizon_months):
             ramp_fraction = min((months_active + 1) / ramp, 1.0)
             benefit = total_monthly_benefit_full * ramp_fraction
 
-        net = benefit - cost
-        rows.append({"month": m, "costs": cost, "benefits": benefit, "net": net})
+            # Readiness dollar impacts apply flat each active month.
+            readiness_impact = total_readiness_impact
+            impact_positive = gross_positive_impact
+            impact_negative = gross_negative_impact
+
+        # Net = adjusted benefits - costs + signed readiness dollar impacts.
+        net = benefit - cost + (readiness_impact if m >= start else 0.0)
+        rows.append({
+            "month": m,
+            "costs": cost,
+            "benefits": benefit,
+            "readiness_impact": readiness_impact if m >= start else 0.0,
+            "impact_positive": impact_positive if m >= start else 0.0,
+            "impact_negative": impact_negative if m >= start else 0.0,
+            "adjustment_pct": round(effective_realization * 100, 1) if m >= start else 0.0,
+            "net": net,
+        })
 
     df = pd.DataFrame(rows)
     df["cumulative_net"] = df["net"].cumsum()
@@ -129,9 +169,20 @@ def _npv(net_series, annual_discount_rate):
 
 def compute_metrics(cashflow_df, annual_discount_rate):
     """Compute the headline metrics from a cash-flow table."""
-    total_costs = cashflow_df["costs"].sum()
-    total_benefits = cashflow_df["benefits"].sum()
-    net_total = total_benefits - total_costs
+    base_costs = cashflow_df["costs"].sum()
+    base_benefits = cashflow_df["benefits"].sum()
+
+    # Readiness dollar impacts: positive parts count as benefits, negative
+    # parts (entered as negatives) count as costs, so ROI stays meaningful.
+    pos = cashflow_df.get("impact_positive")
+    neg = cashflow_df.get("impact_negative")
+    positive_impact = pos.sum() if pos is not None else 0.0
+    negative_impact = -neg.sum() if neg is not None else 0.0  # flip sign -> positive cost
+
+    total_costs = base_costs + negative_impact
+    total_benefits = base_benefits + positive_impact
+    # Net total uses the actual net column, which already includes all impacts.
+    net_total = cashflow_df["net"].sum()
 
     return {
         "total_costs": total_costs,
@@ -170,14 +221,21 @@ def analyze_company(company):
 
     results = [analyze_use_case(uc, settings) for uc in company["use_cases"]]
 
-    # Consolidate: sum the monthly cost/benefit/net across all use cases.
+    # Consolidate: sum the monthly cost/benefit/impact across all use cases.
     combined = pd.DataFrame({"month": range(horizon)})
     combined["costs"] = 0.0
     combined["benefits"] = 0.0
+    combined["readiness_impact"] = 0.0
+    combined["impact_positive"] = 0.0
+    combined["impact_negative"] = 0.0
     for r in results:
         combined["costs"] += r["cashflow"]["costs"].values
         combined["benefits"] += r["cashflow"]["benefits"].values
-    combined["net"] = combined["benefits"] - combined["costs"]
+        combined["readiness_impact"] += r["cashflow"]["readiness_impact"].values
+        combined["impact_positive"] += r["cashflow"]["impact_positive"].values
+        combined["impact_negative"] += r["cashflow"]["impact_negative"].values
+    # Net includes the signed readiness impacts, matching the per-use-case math.
+    combined["net"] = combined["benefits"] - combined["costs"] + combined["readiness_impact"]
     combined["cumulative_net"] = combined["net"].cumsum()
 
     company_metrics = compute_metrics(combined, rate)
