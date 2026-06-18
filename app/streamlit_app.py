@@ -37,29 +37,54 @@ from engine import analyze_use_case, analyze_company
 # in one helper means the whole app shares a single, deliberate visual style
 # rather than matplotlib's dated defaults.
 COLORS = {
-    "primary": "#4F46E5",    # indigo (matches the app accent)
+    "primary": "#6366F1",    # indigo — vivid enough for light AND dark
     "positive": "#10B981",   # emerald green
     "negative": "#EF4444",   # red
     "neutral": "#94A3B8",    # slate gray
-    "grid": "rgba(148,163,184,0.18)",   # faint slate, works on any background
-    "text": "#1A1A2E",
 }
+
+
+def theme_colors():
+    """Return text/grid colors that adapt to the active light or dark theme.
+
+    The brand colors (indigo/green/red) read well on both backgrounds, but text
+    and gridlines need to flip: dark text on a light page, light text on a dark
+    page. We read the active theme from Streamlit's context; if that's
+    unavailable for any reason, we fall back to light-mode colors.
+    """
+    try:
+        theme_type = st.context.theme.get("type")  # "light" or "dark"
+    except Exception:
+        theme_type = "light"
+
+    if theme_type == "dark":
+        return {
+            "text": "#E5E7EB",                      # light gray text
+            "grid": "rgba(203,213,225,0.22)",       # subtle light grid
+            "zeroline": "rgba(203,213,225,0.55)",
+        }
+    return {
+        "text": "#1A1A2E",                          # dark text
+        "grid": "rgba(148,163,184,0.25)",           # subtle dark grid
+        "zeroline": "rgba(100,116,139,0.6)",
+    }
 
 
 def style_fig(fig, title, y_title, x_title="Month", height=420):
     """Apply the shared modern styling to a Plotly figure.
 
-    Backgrounds are transparent so the chart blends into the page rather than
-    sitting on a white card. Lines, text, and grid are chosen to contrast the
-    app's light background.
+    Backgrounds are transparent so the chart blends into the page. Text and
+    grid colors adapt to the active light/dark theme so titles, labels, and
+    gridlines stay readable either way.
     """
+    tc = theme_colors()
     fig.update_layout(
-        title=dict(text=title, font=dict(size=18, color=COLORS["text"])),
+        title=dict(text=title, font=dict(size=18, color=tc["text"])),
         xaxis_title=x_title,
         yaxis_title=y_title,
         height=height,
         font=dict(family="system-ui, -apple-system, sans-serif", size=13,
-                  color=COLORS["text"]),
+                  color=tc["text"]),
         margin=dict(l=60, r=30, t=60, b=50),
         legend=dict(orientation="h", yanchor="bottom", y=1.0, xanchor="right", x=1),
         hovermode="x unified",
@@ -68,9 +93,11 @@ def style_fig(fig, title, y_title, x_title="Month", height=420):
         paper_bgcolor="rgba(0,0,0,0)",
     )
     fig.update_xaxes(showgrid=False, zeroline=False,
-                     linecolor=COLORS["grid"])
-    fig.update_yaxes(showgrid=True, gridcolor=COLORS["grid"], zeroline=True,
-                     zerolinecolor="rgba(148,163,184,0.5)", zerolinewidth=1)
+                     linecolor=tc["grid"], tickfont=dict(color=tc["text"]),
+                     title_font=dict(color=tc["text"]))
+    fig.update_yaxes(showgrid=True, gridcolor=tc["grid"], zeroline=True,
+                     zerolinecolor=tc["zeroline"], zerolinewidth=1,
+                     tickfont=dict(color=tc["text"]), title_font=dict(color=tc["text"]))
     return fig
 
 
@@ -161,23 +188,30 @@ def render_radar(scores, scales, title):
     fig = go.Figure()
     fig.add_trace(go.Scatterpolar(
         r=values_closed, theta=labels_closed, fill="toself",
-        fillcolor=color, opacity=0.25,
-        line=dict(color=color, width=2),
+        fillcolor=color, opacity=0.30,
+        line=dict(color=color, width=2.5),
         marker=dict(size=6, color=color),
         hovertemplate="%{theta}: %{r}/5<extra></extra>",
         name="Score",
     ))
+    tc = theme_colors()
+    # The radar's gridlines need a touch more presence than the cartesian
+    # charts to stay legible, especially in dark mode.
+    radial_grid = ("rgba(203,213,225,0.30)"
+                   if tc["text"] == "#E5E7EB" else "rgba(148,163,184,0.35)")
     fig.update_layout(
-        title=dict(text=title, font=dict(size=16, color=COLORS["text"])),
+        title=dict(text=title, font=dict(size=16, color=tc["text"])),
         polar=dict(
             radialaxis=dict(visible=True, range=[0, 5], tickvals=[1, 2, 3, 4, 5],
-                            gridcolor=COLORS["grid"], linecolor=COLORS["grid"]),
-            angularaxis=dict(gridcolor=COLORS["grid"], linecolor=COLORS["grid"]),
+                            gridcolor=radial_grid, linecolor=radial_grid,
+                            tickfont=dict(color=tc["text"])),
+            angularaxis=dict(gridcolor=radial_grid, linecolor=radial_grid,
+                             tickfont=dict(color=tc["text"], size=12)),
             bgcolor="rgba(0,0,0,0)",
         ),
         height=400, showlegend=False,
         font=dict(family="system-ui, -apple-system, sans-serif", size=12,
-                  color=COLORS["text"]),
+                  color=tc["text"]),
         margin=dict(l=70, r=70, t=60, b=40),
         paper_bgcolor="rgba(0,0,0,0)",
     )
@@ -717,18 +751,20 @@ with tab_company:
         scatter_names.append(r["name"])
         scatter_colors.append(readiness_color(avg))
 
+    tc_sc = theme_colors()
     fig_sc = go.Figure(go.Scatter(
         x=scatter_x, y=scatter_y, mode="markers+text",
         text=scatter_names, textposition="top center",
         marker=dict(size=14, color=scatter_colors,
-                    line=dict(width=1, color="white")),
+                    line=dict(width=1, color=tc_sc["grid"])),
+        textfont=dict(color=tc_sc["text"]),
         hovertemplate="%{text}<br>Readiness: %{x:.1f}/5<br>NPV: $%{y:,.0f}K<extra></extra>",
     ))
-    fig_sc.add_hline(y=0, line_color="#9CA3AF", line_width=1)
-    fig_sc.add_vline(x=3, line_color="#9CA3AF", line_width=1, line_dash="dot")
+    fig_sc.add_hline(y=0, line_color=tc_sc["zeroline"], line_width=1)
+    fig_sc.add_vline(x=3, line_color=tc_sc["zeroline"], line_width=1, line_dash="dot")
     style_fig(fig_sc, "Use Cases: Readiness vs. Financial Outcome",
               "NPV ($ thousands)", x_title="Readiness score (1-5)")
-    fig_sc.update_xaxes(range=[1, 5], showgrid=True, gridcolor=COLORS["grid"])
+    fig_sc.update_xaxes(range=[1, 5], showgrid=True, gridcolor=tc_sc["grid"])
     st.plotly_chart(fig_sc, use_container_width=True)
     st.caption(
         "Top-right = healthy (good returns, well-absorbed). Top-left = financial "
